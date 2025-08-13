@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Votación de Playlist en Vivo</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .song-card {
+            transition: all 0.3s ease;
+        }
+        .song-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .vote-btn {
+            transition: all 0.2s;
+        }
+        .vote-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-80 flex items-center justify-center z-50">
+        <div class="text-center">
+            <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+            <p class="mt-4 text-gray-700">Loading...</p>
+        </div>
+    </div>
+
+    <div id="app" class="container mx-auto px-4 py-8">
+        <!-- Header with User Info -->
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">🎵 Playlist Voting</h1>
+            <p class="text-gray-600 mb-6">Vote for your favorite songs in real-time</p>
+            
+            <!-- User Info (shown when logged in) -->
+            <div id="user-info" class="hidden bg-white rounded-lg shadow-md p-4 max-w-xs mx-auto mb-8">
+                <div class="flex items-center justify-center space-x-4">
+                    <img id="user-avatar" class="w-12 h-12 rounded-full border-2 border-blue-200" src="" alt="User Avatar">
+                    <div class="text-left">
+                        <p id="user-name" class="font-medium text-gray-800"></p>
+                        <p id="user-email" class="text-sm text-gray-500"></p>
+                    </div>
+                    <button id="logout-btn" class="ml-auto text-gray-500 hover:text-red-500 transition-colors" title="Logout">
+                        <i class="fas fa-sign-out-alt text-xl"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Login Button (shown when not logged in) -->
+            <div id="login-section" class="mt-8">
+                <a href="/auth/google" class="px-6 py-3 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 inline-flex items-center space-x-2 transition-colors">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google Logo" class="w-5 h-5">
+                    <span>Sign in with Google</span>
+                </a>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-3xl mx-auto">
+            <!-- Voting Section (shown when logged in) -->
+            <div id="voting-section" class="hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-semibold text-gray-800">Top Songs</h2>
+                    <div class="flex items-center space-x-2">
+                        <span id="online-count" class="text-sm text-gray-500 flex items-center">
+                            <span class="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                            <span id="online-users">0</span> online
+                        </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Canción B -->
+                <div class="song-card bg-white rounded-xl shadow-md overflow-hidden">
+                    <div class="p-6">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-2">Canción B</h2>
+                        <p class="text-gray-600 mb-4">Artista B - Álbum B</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-3xl font-bold text-pink-600" id="votes-b">0</span>
+                            <button id="vote-b" class="vote-btn bg-pink-600 text-white px-6 py-2 rounded-lg hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2" disabled>
+                                Votar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resultados en tiempo real -->
+            <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">Resultados en Tiempo Real</h2>
+                <div class="w-full bg-gray-200 rounded-full h-6 mb-4">
+                    <div id="progress-bar" class="bg-gradient-to-r from-indigo-600 to-pink-600 h-6 rounded-full transition-all duration-500 ease-in-out" style="width: 50%"></div>
+                </div>
+                <div class="flex justify-between text-sm text-gray-600">
+                    <span>0%</span>
+                    <span id="total-votes">0 votos totales</span>
+                    <span>100%</span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
