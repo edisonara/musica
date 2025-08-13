@@ -4,44 +4,47 @@ const JwtStrategy = require('passport-jwt').Strategy;
 const { ExtractJwt } = require('passport-jwt');
 const jwt = require('jsonwebtoken');
 
-// In-memory store for users and votes (in a real app, use a database)
+// In-memory storage (replace with database in production)
 const users = new Map();
 const votes = new Map();
 
-// Generate JWT token
-const generateToken = (user) => {
-  return jwt.sign(
-    { userId: user.id, email: user.email },
-    process.env.JWT_SECRET || 'your-jwt-secret',
-    { expiresIn: '24h' }
-  );
-};
+// Sample songs
+const songs = [
+  { id: 'song1', title: 'Bohemian Rhapsody', artist: 'Queen' },
+  { id: 'song2', title: 'Stairway to Heaven', artist: 'Led Zeppelin' },
+  { id: 'song3', title: 'Hotel California', artist: 'Eagles' },
+  { id: 'song4', title: 'Sweet Child O\'Mine', artist: 'Guns N\' Roses' }
+];
 
 // Google OAuth Strategy
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/auth/google/callback',
-    scope: ['profile', 'email']
+    callbackURL: process.env.GOOGLE_CALLBACK_URL || '/auth/google/callback',
+    proxy: true // Required for production with proxy
   },
-  (accessToken, refreshToken, profile, done) => {
+  async (accessToken, refreshToken, profile, done) => {
     try {
-      // Check if user already exists
+      // Check if user exists
       let user = users.get(profile.id);
       
       if (!user) {
         // Create new user
         user = {
           id: profile.id,
-          email: profile.emails[0].value,
+          googleId: profile.id,
           name: profile.displayName,
-          photo: profile.photos && profile.photos[0] ? profile.photos[0].value : '/default-avatar.png',
-          lastLogin: new Date()
+          email: profile.emails[0].value,
+          photo: profile.photos?.[0]?.value || '',
+          role: 'user', // Default role
+          createdAt: new Date()
         };
-        users.set(profile.id, user);
-      } else {
-        // Update last login
-        user.lastLogin = new Date();
+        
+        // Make first user an admin
+        if (users.size === 0) {
+          user.role = 'admin';
+        }
+        
         users.set(profile.id, user);
       }
       
@@ -52,42 +55,43 @@ passport.use(new GoogleStrategy({
   }
 ));
 
-// JWT Strategy
+// JWT Strategy Configuration
 const jwtOptions = {
-  jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-  secretOrKey: process.env.JWT_SECRET || 'your-jwt-secret'
+  jwtFromRequest: ExtractJwt.fromExtractors([
+    ExtractJwt.fromAuthHeaderAsBearerToken(),
+    ExtractJwt.fromUrlQueryParameter('token'),
+    (req) => req.cookies?.jwt,
+    (req) => {
+      let token = null;
+      if (req && req.signedCookies) {
+        token = req.signedCookies['jwt'];
+      }
+      return token;
+    }
+  ]),
+  secretOrKey: process.env.JWT_SECRET || 'your-secure-jwt-secret',
+  issuer: 'voting-app',
+  audience: 'voting-app-users',
+  ignoreExpiration: false,
+  passReqToCallback: true
 };
 
-passport.use(new JwtStrategy(jwtOptions, (payload, done) => {
+// JWT Strategy
+passport.use(new JwtStrategy(jwtOptions, async (req, jwtPayload, done) => {
   try {
-    const user = users.get(payload.userId);
-    if (user) {
-      return done(null, user);
-    } else {
-      return done(null, false);
+    const user = users.get(jwtPayload.userId || jwtPayload.sub);
+    
+    if (!user) {
+      return done(null, false, { message: 'User not found' });
     }
+    
+    // You could add additional checks here, like token blacklisting
+    
+    return done(null, user);
   } catch (error) {
     return done(error, false);
   }
 }));
-
-// Helper function to get user votes
-const getUserVotes = (userId) => {
-  if (!votes.has(userId)) {
-    votes.set(userId, new Map());
-  }
-  return votes.get(userId);
-};
-
-// Helper function to add/update vote
-const addVote = (userId, songId, voteType) => {
-  const userVotes = getUserVotes(userId);
-  userVotes.set(songId, { 
-    type: voteType, 
-    timestamp: new Date() 
-  });
-  return userVotes.get(songId);
-};
 
 // Serialize/Deserialize user
 passport.serializeUser((user, done) => {
@@ -99,10 +103,70 @@ passport.deserializeUser((id, done) => {
   done(null, user || false);
 });
 
-module.exports = { 
-  generateToken, 
-  users, 
+// Helper functions
+const generateJwt = (user) => {
+  const payload = {
+    userId: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
+  };
+  
+  return jwt.sign(payload, process.env.JWT_SECRET || 'your-secure-jwt-secret', {
+    expiresIn: '24h',
+    issuer: 'voting-app',
+    audience: 'voting-app-users'
+  });
+};
+
+// Add vote for a user
+const addVote = (userId, songId, voteType) => {
+  votes.set(userId, { songId, type: voteType, timestamp: Date.now() });
+  return votes.get(userId);
+};
+
+// Get user's vote for a specific song
+const getUserVote = (userId, songId) => {
+  const vote = votes.get(userId);
+  return vote && vote.songId === songId ? vote : null;
+};
+
+// Get all votes for a user
+const getUserVotes = (userId) => {
+  const userVotes = {};
+  const vote = votes.get(userId);
+  if (vote) {
+    userVotes[vote.songId] = vote.type;
+  }
+  return userVotes;
+};
+
+// Get all votes (admin only)
+const getAllVotes = () => {
+  return Array.from(votes.entries()).map(([userId, vote]) => ({
+    userId,
+    ...vote
+  }));
+};
+
+// Reset all votes (admin only)
+const resetVotes = () => {
+  votes.clear();
+  return true;
+};
+
+module.exports = {
+  passport,
+  users,
   votes,
+  songs,
+  generateJwt,
+  addVote,
+  getUserVote,
   getUserVotes,
-  addVote
+  getAllVotes,
+  resetVotes,
+  jwtOptions
 };

@@ -8,8 +8,34 @@ const songs = [
 
 const { users, votes, songs: songList } = require('../config/passport');
 
+// Helper function to calculate vote counts
+const calculateVotes = (songs, votes, userId) => {
+  const voteCounts = {};
+  const userVotes = {};
+  
+  // Initialize vote counts for all songs
+  songs.forEach(song => {
+    voteCounts[song.id] = 0;
+  });
+  
+  // Count votes and track user votes
+  for (const [voterId, voteData] of votes) {
+    const { songId, type } = voteData;
+    if (voteCounts[songId] !== undefined) {
+      voteCounts[songId] += type === 'upvote' ? 1 : -1;
+    }
+    
+    // If this is the current user's vote, track it
+    if (userId && voterId === userId) {
+      userVotes[songId] = type;
+    }
+  }
+  
+  return { voteCounts, userVotes };
+};
+
 // Get current vote counts
-exports.getVotes = (req, res) => {
+const getVotes = (req, res) => {
   try {
     const voteCounts = {};
     const userVotes = {};
@@ -44,7 +70,7 @@ exports.getVotes = (req, res) => {
 };
 
 // Submit a vote
-exports.submitVote = (req, res) => {
+const submitVote = (req, res) => {
   try {
     const { songId, voteType } = req.body;
     const userId = req.user.id;
@@ -98,7 +124,7 @@ exports.submitVote = (req, res) => {
 };
 
 // Reset all votes (admin only)
-exports.resetVotes = (req, res) => {
+const resetVotes = (req, res) => {
   try {
     // Clear all votes
     votes.clear();
