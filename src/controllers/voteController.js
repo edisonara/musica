@@ -128,24 +128,40 @@ const resetVotes = (req, res) => {
   try {
     // Clear all votes
     votes.clear();
+    
+    // Initialize empty vote counts
+    const voteCounts = {};
+    songList.forEach(song => {
+      voteCounts[song.id] = 0;
+    });
+    
+    // Emit update to all connected clients
     const io = req.app.get('io');
     if (io) {
-      io.emit('voteUpdate', { songs: updatedVotes });
+      io.emit('voteUpdate', { 
+        votes: voteCounts,
+        userVotes: {}
+      });
     }
     
     res.json({ 
       success: true, 
       message: 'Votes reset successfully',
-      songs: updatedVotes
+      votes: voteCounts
     });
   } catch (error) {
     console.error('Error resetting votes:', error);
-    res.status(500).json({ success: false, error: 'Error resetting votes' });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Error resetting votes' 
+    });
   }
 };
 
+// Export all controller functions
 module.exports = {
   getVotes,
   submitVote,
-  resetVotes
+  resetVotes,
+  calculateVotes // Exporting for testing purposes
 };
